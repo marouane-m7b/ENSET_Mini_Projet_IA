@@ -23,8 +23,15 @@
 \titlespacing{\subsection}{0pt}{10pt}{4pt}
 \titlespacing{\subsubsection}{0pt}{8pt}{3pt}
 
+% Page de garde et TDM sans en-tetes
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+}
+
 \pagestyle{fancy}\fancyhf{}
-\fancyhead[R]{\small\color{gray}Planification robuste : A* + Chaînes de Markov}
+\fancyhead[R]{\small\color{gray}Planification robuste : A* + Chaines de Markov}
 \fancyhead[L]{\small\color{gray}Mahboub Marouane}
 \fancyfoot[C]{\small\color{gray}Master SDIA --- Prof. Mohammed Mestari --- Mars 2026 \quad|\quad \thepage}
 \renewcommand{\headrulewidth}{0.4pt}\renewcommand{\footrulewidth}{0.4pt}
@@ -48,23 +55,60 @@
 
 \begin{document}
 
-% TITRE
+% ══════════════════════════════════════════════════════════════════════════════
+% PAGE DE GARDE (page 1 — sans en-tête ni pied de page)
+% ══════════════════════════════════════════════════════════════════════════════
+\thispagestyle{empty}
+
 \begin{center}
-  \vspace*{0.4cm}
-  {\LARGE\bfseries\color{bleufonce} MINI-PROJET}\\[0.25cm]
-  {\Large\bfseries\color{bleu} Planification Robuste sur Grille}\\[0.12cm]
-  {\large\itshape\color{gray} A* + Chaines de Markov}\\[0.4cm]
-  {\color{bleu}\rule{0.8\linewidth}{1pt}}\\[0.35cm]
-  \begin{tabular}{ll}
-    \textbf{Etudiant :}  & Mahboub Marouane \\[3pt]
-    \textbf{Encadrant :} & Prof. Mohammed Mestari \\[3pt]
-    \textbf{Filiere :}   & Master SDIA 2025--2027 \\[3pt]
-    \textbf{Module :}    & Intelligence Artificielle \\[3pt]
-    \textbf{Date :}      & Mars 2026 \\
-  \end{tabular}\\[0.35cm]
-  {\color{bleu}\rule{0.8\linewidth}{1pt}}
+  \vspace*{2cm}
+
+  % Logo / bandeau université
+  {\color{bleu}\rule{\linewidth}{2pt}}\\[0.4cm]
+  {\small\color{gray}\textsc{ENSET Mohammedia --- École Normale Supérieure de l'Enseignement Technique}}\\[0.2cm]
+  {\color{bleu}\rule{\linewidth}{0.6pt}}
+
+  \vspace{1.8cm}
+
+  {\large\color{gray}\textsc{Master SDIA --- Systèmes Distribués et Intelligence Artificielle}}\\[0.6cm]
+
+  {\color{bleu}\rule{0.6\linewidth}{0.8pt}}\\[0.5cm]
+  {\LARGE\bfseries\color{bleufonce} Mini-Projet}\\[0.3cm]
+  {\Huge\bfseries\color{bleu} Planification Robuste\\[0.2cm] sur Grille}\\[0.3cm]
+  {\Large\itshape\color{gray} A* + Chaînes de Markov}\\[0.5cm]
+  {\color{bleu}\rule{0.6\linewidth}{0.8pt}}
+
+  \vspace{2cm}
+
+  \begin{tabular}{r@{\hspace{1cm}}l}
+    \textcolor{gray}{\textbf{Étudiant}} & \textbf{Mahboub Marouane} \\[10pt]
+    \textcolor{gray}{\textbf{Encadrant}} & \textbf{Prof. Mohammed Mestari} \\[10pt]
+    \textcolor{gray}{\textbf{Filière}} & Systèmes Distribués et Intelligence Artificielle \\[10pt]
+    \textcolor{gray}{\textbf{Module}} & Bases de l'Intelligence Artificielle \\[10pt]
+    \textcolor{gray}{\textbf{Date}} & Mars 2026 \\
+  \end{tabular}
+
+  \vfill
+
+  {\color{bleu}\rule{\linewidth}{0.6pt}}\\[0.3cm]
+  {\small\color{gray} Année universitaire 2025--2026}\\[0.2cm]
+  {\color{bleu}\rule{\linewidth}{2pt}}
 \end{center}
-\vspace{0.2cm}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% TABLE DES MATIÈRES (page 2 — sans en-tête)
+% ══════════════════════════════════════════════════════════════════════════════
+\thispagestyle{empty}
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% CONTENU (à partir de la page 3 — avec en-têtes)
+% ══════════════════════════════════════════════════════════════════════════════
+\setcounter{page}{1}
+\pagestyle{fancy}
 
 \section{Resume}
 
