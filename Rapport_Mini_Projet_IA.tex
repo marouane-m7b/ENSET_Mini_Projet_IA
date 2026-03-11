@@ -1,0 +1,426 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+\usepackage{geometry}
+\geometry{a4paper, top=2cm, bottom=2cm, left=2.2cm, right=2.2cm}
+\usepackage{graphicx,float,caption,subcaption,booktabs,array,colortbl,xcolor}
+\usepackage{amsmath,amssymb,hyperref,fancyhdr,titlesec,enumitem,listings,tcolorbox,parskip}
+
+\definecolor{bleu}{HTML}{2E74B5}
+\definecolor{bleufonce}{HTML}{1F3864}
+\definecolor{griscode}{HTML}{F2F4F8}
+\definecolor{bleuheader}{HTML}{EAF4FB}
+\definecolor{vertclair}{HTML}{EBF7EE}
+\definecolor{orangeclair}{HTML}{FEF9EE}
+\definecolor{vertfonce}{HTML}{1A6B2A}
+\definecolor{rougefonce}{HTML}{AA1111}
+
+\titleformat{\section}{\large\bfseries\color{bleufonce}}{\color{bleu}\thesection.}{0.5em}{}[{\color{bleu}\titlerule[0.7pt]}]
+\titleformat{\subsection}{\normalsize\bfseries\color{bleu}}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{black}}{\thesubsubsection.}{0.5em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+\titlespacing{\subsection}{0pt}{10pt}{4pt}
+\titlespacing{\subsubsection}{0pt}{8pt}{3pt}
+
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[R]{\small\color{gray}Planification robuste : A* + Chaînes de Markov}
+\fancyhead[L]{\small\color{gray}Mahboub Marouane}
+\fancyfoot[C]{\small\color{gray}Master SDIA --- Prof. Mohammed Mestari --- Mars 2026 \quad|\quad \thepage}
+\renewcommand{\headrulewidth}{0.4pt}\renewcommand{\footrulewidth}{0.4pt}
+\renewcommand{\headrule}{\color{bleu}\hrule width\headwidth height\headrulewidth}
+\renewcommand{\footrule}{\color{bleu}\hrule width\headwidth height\footrulewidth}
+
+\lstdefinestyle{py}{language=Python,backgroundcolor=\color{griscode},
+  basicstyle=\ttfamily\footnotesize,keywordstyle=\color{bleu}\bfseries,
+  commentstyle=\color{gray}\itshape,stringstyle=\color{orange!70!black},
+  numbers=left,numberstyle=\tiny\color{gray},numbersep=6pt,
+  frame=single,framerule=0.4pt,rulecolor=\color{bleu!40},
+  breaklines=true,captionpos=b,xleftmargin=12pt}
+
+\tcbuselibrary{skins}
+\newtcolorbox{formulebox}{colback=griscode,colframe=bleu,arc=3pt,boxrule=0.5pt,left=5pt,right=5pt,top=3pt,bottom=3pt}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\arraybackslash}p{#1}}
+\renewcommand{\arraystretch}{1.25}
+\hypersetup{colorlinks=true,linkcolor=bleu,citecolor=bleu,urlcolor=bleu}
+\setlength{\parskip}{4pt}\setlength{\parindent}{0pt}
+
+\begin{document}
+
+% TITRE
+\begin{center}
+  \vspace*{0.4cm}
+  {\LARGE\bfseries\color{bleufonce} MINI-PROJET}\\[0.25cm]
+  {\Large\bfseries\color{bleu} Planification Robuste sur Grille}\\[0.12cm]
+  {\large\itshape\color{gray} A* + Chaines de Markov}\\[0.4cm]
+  {\color{bleu}\rule{0.8\linewidth}{1pt}}\\[0.35cm]
+  \begin{tabular}{ll}
+    \textbf{Etudiant :}  & Mahboub Marouane \\[3pt]
+    \textbf{Encadrant :} & Prof. Mohammed Mestari \\[3pt]
+    \textbf{Filiere :}   & Master SDIA 2025--2027 \\[3pt]
+    \textbf{Module :}    & Intelligence Artificielle \\[3pt]
+    \textbf{Date :}      & Mars 2026 \\
+  \end{tabular}\\[0.35cm]
+  {\color{bleu}\rule{0.8\linewidth}{1pt}}
+\end{center}
+\vspace{0.2cm}
+
+\section{Resume}
+
+Ce mini-projet developpe une solution hybride de planification sous incertitude sur grilles 2D.
+Nous combinons la \textbf{recherche heuristique} (A*, UCS, Greedy, Weighted A*) pour planifier
+un chemin deterministe optimal, et les \textbf{chaines de Markov a temps discret} pour modeliser
+et quantifier l'incertitude des actions reelles.
+
+Les resultats montrent qu'A* avec Manhattan reduit l'exploration de \textbf{52\% vs UCS} sur la
+grille difficile tout en garantissant l'optimalite. L'analyse Markov revele que meme $\varepsilon=0.1$
+reduit $P(\text{GOAL})$ de 26\%. La validation croisee calcul matriciel / Monte-Carlo confirme la
+coherence du modele (ecart $<2.5\%$). Les visualisations de trajectoires revelent les zones pieges.
+
+\section{Contexte et Objectifs}
+
+Dans les systemes autonomes (robotique, logistique, jeux), un agent doit planifier un chemin optimal
+dans un environnement partiellement impre visible. Ce projet combine :
+
+\begin{itemize}[leftmargin=1.4cm,itemsep=2pt]
+  \item \textbf{Recherche heuristique (A* et variantes)} : planification via $f(n)=g(n)+h(n)$, structures OPEN/CLOSED.
+  \item \textbf{Chaines de Markov a temps discret} : modelisation de l'incertitude et evaluation probabiliste via calcul matriciel ($\mathbf{P}^n$) et simulation Monte-Carlo.
+\end{itemize}
+
+\textbf{Question centrale :} comment un plan deterministe optimal se comporte-t-il sous une dynamique stochastique reelle ?
+
+\section{Modelisation Mathematique}
+
+\subsection{Espace d'etats et graphe de recherche}
+
+La grille 2D : $0=\text{libre}$, $1=\text{obstacle}$. Les transitions definissent un graphe pondere avec :
+\begin{formulebox}
+\[ g(n)=\text{cout cumule depuis }s_0 \qquad h(n)=\text{estimation heuristique} \qquad f(n)=g(n)+h(n) \]
+\end{formulebox}
+Heuristique de Manhattan (4-connexite) :
+\begin{formulebox}
+\[ h\bigl((x,y)\bigr)=|x-x_g|+|y-y_g| \]
+\end{formulebox}
+\textbf{Admissible} : $h(n)\leq h^*(n)$ (L1 est minorant exact).
+\textbf{Coherente} : $h(n)\leq c(n,n')+h(n')$ (inegalite triangulaire).
+Ces deux proprietes garantissent l'optimalite de A* et la dominance de Manhattan sur $h=0$ (voir E.3).
+
+\subsection{Chaine de Markov --- modele d'incertitude}
+
+\begin{formulebox}
+\[ P(X_{n+1}=j\mid X_n=i)=p_{ij}, \qquad \mathbf{P}=(p_{ij})\text{ stochastique par lignes} \]
+\end{formulebox}
+
+Modele d'incertitude parametre par $\varepsilon$ : avec probabilite $1{-}\varepsilon$ l'action
+voulue est executee ; $\varepsilon/2$ deviation laterale gauche ; $\varepsilon/2$ deviation
+laterale droite ; si deviation bloquee l'agent reste sur place (\textbf{boucle propre} $p_{ii}>0$,
+garantissant l'aperiodicite).
+\begin{formulebox}
+\[ \pi^{(n)}=\pi^{(0)}\cdot\mathbf{P}^n \qquad \text{(Chapman-Kolmogorov)} \]
+\end{formulebox}
+
+\subsection{Etats absorbants et analyse d'absorption}
+
+GOAL est absorbant ($p_{\text{GOAL,GOAL}}=1$). Decomposition canonique $\mathbf{P}=\bigl[\begin{smallmatrix}\mathbf{I}&\mathbf{0}\\\mathbf{R}&\mathbf{Q}\end{smallmatrix}\bigr]$ :
+\begin{formulebox}
+\[ \mathbf{N}=(\mathbf{I}-\mathbf{Q})^{-1}\quad\text{(matrice fondamentale)}\qquad \mathbf{B}=\mathbf{N}\mathbf{R}\quad\text{(prob. absorption)}\qquad \mathbf{t}=\mathbf{N}\mathbf{1}\quad\text{(temps moyen)} \]
+\end{formulebox}
+
+\section{Implementation Python}
+
+\subsection{Architecture modulaire}
+\begin{itemize}[leftmargin=1.4cm,itemsep=2pt]
+  \item \texttt{astar.py} --- \texttt{search()} generique : UCS $(1,0)$, Greedy $(0,1)$, A* $(1,1)$, Weighted A* $(1,w)$. OPEN=heapq $O(\log n)$, CLOSED=set $O(1)$.
+  \item \texttt{markov.py} --- Construction $\mathbf{P}$, calcul $\pi^{(n)}$, $\mathbf{N}=(\mathbf{I}-\mathbf{Q})^{-1}$, simulation Monte-Carlo.
+  \item \texttt{grids.py} --- 3 grilles : facile $8\times8$, moyenne $10\times10$, difficile $12\times12$.
+  \item \texttt{experiments.py} --- Orchestration E1--E4 + figures.
+  \item \texttt{gen\_traj\_figures.py} --- Trajectoires stochastiques et heatmaps de densite.
+\end{itemize}
+
+\subsection{Algorithme A* generique}
+
+\begin{lstlisting}[style=py, caption={astar.py --- search() unifiant UCS / Greedy / A* / Weighted A*}]
+def search(grid, start, goal, heuristic, weight_g=1.0, weight_h=1.0):
+    # weight_g=1, weight_h=0 -> UCS
+    # weight_g=0, weight_h=1 -> Greedy
+    # weight_g=1, weight_h=1 -> A*
+    # weight_g=1, weight_h=w -> Weighted A* (w > 1)
+    OPEN = []                 # tas binaire heapq  O(log n)
+    CLOSED = set()            # etats developpes   O(1)
+    g_scores = {start: 0.0}
+    came_from = {start: None}
+    heapq.heappush(OPEN, (weight_h * heuristic(start, goal), 0.0, start))
+    while OPEN:
+        f, g, current = heapq.heappop(OPEN)
+        if current in CLOSED: continue
+        CLOSED.add(current)
+        if current == goal:
+            return reconstruct_path(came_from, goal, g_scores)
+        for neighbor, cost in get_neighbors(current, grid):
+            tentative_g = g + cost
+            if tentative_g < g_scores.get(neighbor, float('inf')):
+                g_scores[neighbor] = tentative_g
+                came_from[neighbor] = current
+                h = heuristic(neighbor, goal)
+                heapq.heappush(OPEN,
+                    (weight_g * tentative_g + weight_h * h,
+                     tentative_g, neighbor))
+    return {"success": False, "cost": float('inf'),
+            "nodes_expanded": len(CLOSED)}
+\end{lstlisting}
+
+\subsection{Construction de la matrice P}
+
+\begin{lstlisting}[style=py, caption={markov.py --- construction et verification de P stochastique}]
+def build_transition_matrix(states, policy, goal, grid, epsilon=0.1):
+    for s in states:
+        if s == goal:               # etat absorbant
+            P[idx, idx] = 1.0; continue
+        action = (policy[s][0]-s[0], policy[s][1]-s[1])
+        lats = [(-action[1], action[0]),   # deviation gauche
+                ( action[1],-action[0])]   # deviation droite
+        add_prob(try_move(s, action),  1 - epsilon)
+        for lat in lats:
+            add_prob(try_move(s, lat), epsilon / 2)
+    # Verification stochasticite (toutes les lignes = 1)
+    assert np.allclose(P.sum(axis=1), 1.0, atol=1e-9)
+    return P, state_to_idx
+\end{lstlisting}
+
+\section{Experiences et Resultats}
+
+\subsection{E.1 --- Comparaison UCS / Greedy / A*}
+
+\begin{table}[H]
+\centering\small
+\caption{UCS, Greedy et A* sur les 3 grilles (cout, temps, noeuds, memoire OPEN)}
+\begin{tabular}{C{1.5cm}C{1.6cm}C{1.1cm}C{1.6cm}C{2.2cm}C{1.4cm}}
+\toprule
+\rowcolor{bleu}
+\color{white}\textbf{Grille}&\color{white}\textbf{Algorithme}&\color{white}\textbf{Cout}&\color{white}\textbf{Temps}&\color{white}\textbf{Noeuds dev.}&\color{white}\textbf{OPEN max}\\
+\midrule
+\rowcolor{bleuheader}easy&UCS&14&0.11 ms&53&7\\
+\rowcolor{bleuheader}easy&Greedy&14&0.03 ms&15&9\\
+\rowcolor{bleuheader}easy&A*&14&0.09 ms&53&7\\
+\rowcolor{vertclair}medium&UCS&18&0.09 ms&61&6\\
+\rowcolor{vertclair}medium&Greedy&18&0.05 ms&19&8\\
+\rowcolor{vertclair}medium&A*&18&0.05 ms&30&8\\
+\rowcolor{orangeclair}hard&UCS&24&0.13 ms&87&8\\
+\rowcolor{orangeclair}hard&Greedy&\textbf{28}&0.04 ms&29&6\\
+\rowcolor{orangeclair}hard&A*&24&0.06 ms&42&6\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\linewidth]{figures/e1_comparison.png}
+  \caption{Noeuds developpes (gauche) et cout du chemin (droite) par algorithme et grille}
+\end{figure}
+
+\begin{figure}[H]\centering
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{figures/grid_easy_astar.png}
+    \caption{Facile $8\times8$, cout=14}\end{subfigure}\hfill
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{figures/grid_medium_astar.png}
+    \caption{Moyenne $10\times10$, cout=18}\end{subfigure}\hfill
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{figures/grid_hard_astar.png}
+    \caption{Difficile $12\times12$, cout=24}\end{subfigure}
+  \caption{Chemins optimaux A* (bleu) --- depart vert, but rouge etoile}
+\end{figure}
+
+\textbf{Observations :} A* et UCS trouvent le chemin optimal. Greedy sacrifie l'optimalite sur la grille difficile (28 vs 24, $+17\%$). A* developpe 42 noeuds contre 87 pour UCS --- \textbf{52\% de reduction} avec meme cout optimal.
+
+\subsection{E.2 --- Impact de l'incertitude $\varepsilon$ + validation croisee}
+
+A* fixe sur la grille moyenne (cout=18). Variation $\varepsilon\in\{0.0,0.1,0.2,0.3\}$, 2000 trajectoires Monte-Carlo par valeur.
+
+\begin{table}[H]
+\centering\small
+\caption{Validation croisee : $\mathbf{P}^{200}$ (analytique) vs simulation Monte-Carlo}
+\begin{tabular}{C{1.2cm}C{2.8cm}C{2.5cm}C{2.8cm}C{2cm}}
+\toprule
+\rowcolor{bleu}
+\color{white}\textbf{$\varepsilon$}&\color{white}\textbf{$P(\text{GOAL})$ via $\mathbf{P}^{200}$}&\color{white}\textbf{$P(\text{GOAL})$ MC}&\color{white}\textbf{Temps moyen (MC)}&\color{white}\textbf{Ecart}\\
+\midrule
+0.0&1.0000&1.0000&18.0 etapes&0.00\%\\
+\rowcolor{bleuheader}0.1&0.7209&0.7430&19.9 etapes&2.21\%\\
+0.2&0.4865&0.4815&22.4 etapes&0.50\%\\
+\rowcolor{bleuheader}0.3&0.3006&0.3025&25.4 etapes&0.19\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ce tableau constitue la \textbf{validation croisee} du modele : calcul matriciel $\mathbf{P}^n$ et Monte-Carlo convergent (ecart moyen $<2.5\%$), confirmant la construction correcte de $\mathbf{P}$.
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\linewidth]{figures/e2_epsilon.png}
+  \caption{$\pi^{(n)}[\text{GOAL}]$ par calcul matriciel $\mathbf{P}^n$ (gauche) et $P(\text{GOAL})$ par simulation Monte-Carlo (droite)}
+\end{figure}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=0.95\linewidth]{figures/e2_reach_time_dist.png}
+  \caption{Distribution du temps d'atteinte GOAL pour chaque $\varepsilon$ (2000 trajectoires). A $\varepsilon=0$ : Dirac a 18 etapes. A $\varepsilon=0.3$ : large dispersion, 70\% d'echec.}
+\end{figure}
+
+\subsection{E.3 --- Comparaison $h=0$ vs Manhattan (dominance heuristique)}
+
+Cette experience demontre la \textbf{dominance} de Manhattan sur $h=0$ : une heuristique admissible et coherente qui majore strictement $h=0$ reduit l'exploration sans sacrifier l'optimalite.
+
+\begin{table}[H]
+\centering\small
+\caption{Dominance heuristique : $h=0$ (UCS) vs $h=\text{Manhattan}$ (A*)}
+\begin{tabular}{C{2cm}C{2cm}C{1.8cm}C{2.5cm}C{2.5cm}}
+\toprule
+\rowcolor{bleu}
+\color{white}\textbf{Grille}&\color{white}\textbf{h=0 Noeuds}&\color{white}\textbf{h=0 Cout}&\color{white}\textbf{Manhattan Noeuds}&\color{white}\textbf{Manhattan Cout}\\
+\midrule
+\rowcolor{bleuheader}easy&53&14&53 (0\%)&14\\
+medium&61&18&\textbf{30 ($-51\%$)}&18\\
+\rowcolor{bleuheader}hard&87&24&\textbf{42 ($-52\%$)}&24\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=0.72\linewidth]{figures/e3_heuristic.png}
+  \caption{Dominance de Manhattan sur $h=0$ : gain $-51$ a $-52\%$ de noeuds, cout identique}
+\end{figure}
+
+\textbf{Conclusion E.3 :} Manhattan domine strictement $h=0$ car $h_{\text{Manhattan}}(n)\geq 0$ pour tout $n$, tout en restant admissible ($h_{\text{Manhattan}}\leq h^*$). Gain experimentalement confirme : $-52\%$ de noeuds sur la grille difficile --- preuve directe de l'interet des heuristiques informees.
+
+\subsection{E.4 --- Weighted A* : compromis vitesse/optimalite}
+
+\begin{table}[H]
+\centering\small
+\caption{Weighted A* sur la grille difficile : noeuds et garantie de sous-optimalite}
+\begin{tabular}{C{1.8cm}C{2.5cm}C{2cm}C{2.5cm}C{2cm}}
+\toprule
+\rowcolor{bleu}
+\color{white}\textbf{Poids $w$}&\color{white}\textbf{Noeuds dev.}&\color{white}\textbf{Cout}&\color{white}\textbf{Ratio/Optimal}&\color{white}\textbf{Garantie}\\
+\midrule
+1.0&42&24&1.000&optimal\\
+\rowcolor{bleuheader}1.5&29 ($-31\%$)&24&1.000&$\leq 1.5\times$\\
+2.0&29 ($-31\%$)&24&1.000&$\leq 2\times$\\
+\rowcolor{bleuheader}3.0&29 ($-31\%$)&24&1.000&$\leq 3\times$\\
+5.0&29 ($-31\%$)&28&\textbf{1.167}&$\leq 5\times$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\linewidth]{figures/e4_weighted.png}
+  \caption{Weighted A* : noeuds developpes (gauche) et ratio sous-optimalite (droite). Pour $w\in[1.5,3]$ : gain $-31\%$ sans aucune perte d'optimalite.}
+\end{figure}
+
+Weighted A* garantit $\text{cout}\leq w\times\text{cout\_optimal}$. Ici $w\leq3$ offre $-31\%$ d'exploration \textbf{sans sous-optimalite reelle} --- compromis tres favorable pour les applications temps-reel.
+
+\subsection{E.5 --- Visualisation des trajectoires stochastiques}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\linewidth]{figures/traj_medium_epsilons.png}
+  \caption{50 trajectoires stochastiques par $\varepsilon\in\{0.1,0.2,0.3\}$ sur la grille medium.
+           \textcolor{bleu}{Bleu pointille} = plan A* ;
+           \textcolor{vertfonce}{vert} = trajectoire reussie ;
+           \textcolor{rougefonce}{rouge} = echec.
+           Les trajets rouges sont courts : l'echec survient des les premiers pas dans les corridors etroits.}
+\end{figure}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\linewidth]{figures/traj_3grids_heatmap.png}
+  \caption{Ligne 1 : 40 trajectoires individuelles ($\varepsilon=0.2$) sur les 3 grilles.
+           Ligne 2 : heatmap de densite cumulee.
+           \textcolor{vertfonce}{Vert} = zones des agents reussis (proches du plan A*) ;
+           \textcolor{rougefonce}{Rouge} = zones pieges (corridors perpendiculaires ou les agents bouclent indefiniment).}
+\end{figure}
+
+\section{Analyse de la Chaine de Markov}
+
+\subsection{Classes de communication}
+
+\begin{itemize}[leftmargin=1.4cm,itemsep=2pt]
+  \item \textbf{GOAL} : classe absorbante recurrente positive ($p_{\text{GOAL,GOAL}}=1$). Seul etat persistant.
+  \item \textbf{Etats du chemin A*} : transitoires --- tendance directionnelle vers GOAL.
+  \item \textbf{Etats voisins accessibles} : transitoires --- peuvent rejoindre le chemin ou former des boucles locales.
+\end{itemize}
+
+Le graphe oriente des transitions (arc $i\to j$ si $p_{ij}>0$) montre une structure quasi-unidirectionnelle le long du chemin, avec des branches laterales pour les deviations $\varepsilon/2$.
+
+\subsection{Aperiodicite --- preuve par boucles propres}
+
+Quand une deviation laterale est bloquee (obstacle/bord), l'agent reste sur place : $p_{ii}>0$ pour cet etat, introduisant une \textbf{boucle propre}. Un etat apériodique dans une classe suffit a rendre la classe entiere aperiodique.
+
+\textbf{Verification numerique} (grille medium, $\varepsilon=0.2$) : \textbf{27/27 etats transitoires} ont $p_{ii}>0$ (avec $p_{ii}=0.10$ pour les etats bords par au moins un obstacle lateral) --- la chaine est aperiodique.
+
+\begin{figure}[H]\centering
+  \includegraphics[width=0.72\linewidth]{figures/aperiodicity.png}
+  \caption{Preuve visuelle de l'aperiodicite : chaque cercle orange = etat avec boucle propre $p_{ii}>0$, taille proportionnelle a $p_{ii}$. Tous les 27 etats transitoires ont $p_{ii}>0$.}
+\end{figure}
+
+\subsection{Validation croisee calcul matriciel vs Monte-Carlo}
+
+La Table~2 (Section 5.2) fournit la comparaison complete pour les 4 valeurs de $\varepsilon$ :
+ecart maximal $2.21\%$ (a $\varepsilon=0.1$, variance Monte-Carlo avec 2000 trajectoires),
+inferieur a $0.5\%$ pour $\varepsilon\in\{0.2,0.3\}$. Ce resultat valide simultanement la
+construction de $\mathbf{P}$ et la procedure de simulation.
+
+Temps moyen d'atteinte conditionnel ($\varepsilon=0.2$) : 22.4 etapes vs 18 deterministes ($+24\%$) --- les deviations stochastiques rallongent significativement le trajet reel.
+
+\section{Discussion et Limites}
+
+\subsection{Interet de l'approche hybride}
+A* fournit un plan optimal efficace. L'analyse Markov quantifie sa robustesse reelle. Les visualisations de trajectoires revelent \textit{ou} et \textit{pourquoi} les agents echouent --- information inaccessible via les seuls chiffres de $P(\text{GOAL})$.
+
+\subsection{Limites identifiees}
+\begin{itemize}[leftmargin=1.4cm,itemsep=2pt]
+  \item \textbf{Scalabilite} : calcul de $\mathbf{P}^n$ en $O(n^3)$, prohibitif pour grandes grilles.
+  \item \textbf{Politique statique} : la politique A* ne s'adapte pas aux deviations reelles.
+  \item \textbf{$\varepsilon$ uniforme} : l'incertitude reelle peut varier selon les zones.
+  \item \textbf{Pas d'etat FAIL explicite} : les echecs ne distinguent pas blocage, cycle, ou erreur irreversible.
+\end{itemize}
+
+\subsection{Pistes d'amelioration}
+\begin{itemize}[leftmargin=1.4cm,itemsep=2pt]
+  \item \textbf{Re-planification en ligne} (D* Lite, ARA*) : recalculer apres chaque deviation, ciblee sur les zones rouges de la heatmap.
+  \item \textbf{MDP} : optimiser directement une politique robuste via l'equation de Bellman.
+  \item \textbf{Etat FAIL absorbant} : ajouter FAIL dans $\mathbf{P}$ pour calculer $P(\text{FAIL})$ analytiquement via $\mathbf{N}$.
+  \item \textbf{Heuristiques apprises} : approcher $h^*$ par reseau de neurones (Neural A*).
+  \item \textbf{IDA*, SMA*} : variantes memoire pour les grandes grilles.
+\end{itemize}
+
+\section{Conclusions}
+
+\begin{table}[H]
+\centering\small
+\caption{Synthese des resultats par critere d'evaluation}
+\begin{tabular}{C{2.8cm}L{9.5cm}}
+\toprule
+\rowcolor{bleu}
+\color{white}\textbf{Critere}&\color{white}\textbf{Resultat obtenu}\\
+\midrule
+\rowcolor{bleuheader}Qualite A*&Optimalite garantie, $-52\%$ noeuds vs UCS grille difficile, temps mesures\\
+Heuristique&Manhattan admissible + coherente, domine $h=0$ ($-51$ a $-52\%$), cout identique\\
+\rowcolor{bleuheader}Modele Markov&$\mathbf{P}$ stochastique verifiee, $\mathbf{P}^n$ vs MC : ecart $<2.5\%$ sur tous les $\varepsilon$\\
+Impact $\varepsilon$&$P(\text{GOAL})$: $1.0\to0.30$ quand $\varepsilon:0\to0.3$ (plan deterministe fragile)\\
+\rowcolor{bleuheader}Aperiodicite&Prouvee : 27/27 etats transitoires avec $p_{ii}>0$ (boucles bloquees)\\
+Trajectoires&Succes suivent le plan A*, echecs concentres dans corridors perpendiculaires\\
+\rowcolor{bleuheader}Weighted A*&$w\leq3$ : $-31\%$ noeuds SANS perte ; $w=5$ : sous-optimalite $+17\%$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A* avec Manhattan planifie efficacement tout en garantissant l'optimalite. L'analyse Markov
+demontre que $P(\text{GOAL})$ est divise par 3 entre $\varepsilon=0$ et $\varepsilon=0.3$.
+La validation croisee $\mathbf{P}^n$/Monte-Carlo confirme la coherence du modele (ecart $<2.5\%$).
+L'aperiodicite est prouvee numeriquement (27/27 boucles propres). Les heatmaps de trajectoires
+revelent les zones pieges --- ouvrant la voie a une re-planification locale ciblee (D* Lite, MDP).
+
+\section*{References}
+\begin{enumerate}[leftmargin=1.4cm,itemsep=2pt]
+  \item Synthese \textit{Chaines de Markov a temps discret} : matrice $\mathbf{P}$, $\mathbf{P}^n$, Chapman--Kolmogorov, classes, absorption, simulation. (Documents de cours)
+  \item Synthese \textit{Recherche heuristique --- du Best-First a A*} : OPEN/CLOSED, $g$, $h$, $f$, admissibilite, coherence, variantes. (Documents de cours)
+  \item Russell, S. \& Norvig, P. (2020). \textit{Artificial Intelligence: A Modern Approach}, 4\textsuperscript{e} ed. Pearson.
+  \item Puterman, M.L. (1994). \textit{Markov Decision Processes}. Wiley.
+  \item Hart, P.E., Nilsson, N.J., Raphael, B. (1968). A Formal Basis for Heuristic Determination of Minimum Cost Paths. \textit{IEEE Trans. Systems Science and Cybernetics}, 4(2), 100--107.
+\end{enumerate}
+
+\end{document}
